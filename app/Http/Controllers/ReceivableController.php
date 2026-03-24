@@ -2,38 +2,48 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ReceivablePayRequest;
+use App\Http\Requests\ReceivableRequest;
 use App\Models\Receivable;
-use App\Models\ReceivablePayment;
+use App\Services\ReceivableService;
 use Illuminate\Http\Request;
 
 class ReceivableController extends Controller
 {
+    public function __construct(private readonly ReceivableService $receivableService)
+    {
+    }
+
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Receivable::class);
+
         $branchId = $request->attributes->get('branch_id');
-        $list = Receivable::with('payments')
+
+        $list = Receivable::with(['payments', 'customer:id,name,phone'])
             ->where('branch_id', $branchId)
+            ->when($request->query('status'), fn ($q, $s) => $q->where('status', $s))
+            ->when($request->query('customer_id'), fn ($q, $c) => $q->where('customer_id', $c))
+            ->when($request->query('from'), fn ($q, $d) => $q->whereDate('due_date', '>=', $d))
+            ->when($request->query('to'), fn ($q, $d) => $q->whereDate('due_date', '<=', $d))
             ->orderByDesc('id')
             ->paginate(20);
+
         return response()->json($list);
     }
 
-    public function store(Request $request)
+    public function store(ReceivableRequest $request)
     {
+        $this->authorize('create', Receivable::class);
+
         $branchId = $request->attributes->get('branch_id');
-        $data = $request->validate([
-            'customer_id' => 'required|exists:customers,id',
-            'sale_id' => 'nullable|exists:sales,id',
-            'amount' => 'required|numeric|min:0',
-            'due_date' => 'nullable|date',
-            'note' => 'nullable|string',
-        ]);
+        $data     = $request->validated();
 
         $receivable = Receivable::create([
             ...$data,
             'branch_id' => $branchId,
-            'balance' => $data['amount'],
-            'status' => 'open',
+            'balance'   => $data['amount'],
+            'status'    => 'open',
         ]);
 
         return response()->json($receivable, 201);
@@ -41,58 +51,55 @@ class ReceivableController extends Controller
 
     public function show(Request $request, $id)
     {
-        $branchId = $request->attributes->get('branch_id');
-        $item = Receivable::with('payments')->where('branch_id', $branchId)->findOrFail($id);
-        return response()->json($item);
+        $branchId   = $request->attributes->get('branch_id');
+        $receivable = Receivable::with(['payments', 'customer:id,name,phone'])
+            ->where('branch_id', $branchId)
+            ->findOrFail($id);
+
+        $this->authorize('view', $receivable);
+
+        return response()->json($receivable);
     }
 
     public function update(Request $request, $id)
     {
-        $branchId = $request->attributes->get('branch_id');
-        $item = Receivable::where('branch_id', $branchId)->findOrFail($id);
+        $branchId   = $request->attributes->get('branch_id');
+        $receivable = Receivable::where('branch_id', $branchId)->findOrFail($id);
+
+        $this->authorize('update', $receivable);
+
         $data = $request->validate([
             'due_date' => 'nullable|date',
-            'note' => 'nullable|string',
+            'note'     => 'nullable|string',
         ]);
-        $item->update($data);
-        return response()->json($item);
+
+        $receivable->update($data);
+
+        return response()->json($receivable->refresh());
     }
 
     public function destroy(Request $request, $id)
     {
-        $branchId = $request->attributes->get('branch_id');
-        Receivable::where('branch_id', $branchId)->findOrFail($id)->delete();
+        $branchId   = $request->attributes->get('branch_id');
+        $receivable = Receivable::where('branch_id', $branchId)->findOrFail($id);
+
+        $this->authorize('delete', $receivable);
+
+        $receivable->delete();
+
         return response()->json(['message' => 'deleted']);
     }
 
-    public function pay(Request $request, $id)
+    /** POST /receivables/{receivable}/pay */
+    public function pay(ReceivablePayRequest $request, $id)
     {
-        $branchId = $request->attributes->get('branch_id');
+        $branchId   = $request->attributes->get('branch_id');
         $receivable = Receivable::where('branch_id', $branchId)->findOrFail($id);
 
-        $data = $request->validate([
-            'amount' => 'required|numeric|min:0.01',
-            'method' => 'required|in:cash,transfer,qris',
-            'note' => 'nullable|string',
-        ]);
+        $this->authorize('pay', $receivable);
 
-        $payment = ReceivablePayment::create([
-            'receivable_id' => $receivable->id,
-            'amount' => $data['amount'],
-            'method' => $data['method'],
-            'paid_at' => now(),
-            'note' => $data['note'] ?? null,
-        ]);
+        $result = $this->receivableService->pay($receivable, $request->validated());
 
-        $receivable->balance -= $data['amount'];
-        if ($receivable->balance <= 0) {
-            $receivable->balance = 0;
-            $receivable->status = 'paid';
-        } elseif ($receivable->balance < $receivable->amount) {
-            $receivable->status = 'partial';
-        }
-        $receivable->save();
-
-        return response()->json(['payment' => $payment, 'receivable' => $receivable]);
+        return response()->json($result);
     }
 }

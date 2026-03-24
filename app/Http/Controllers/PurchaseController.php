@@ -2,87 +2,41 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Product;
+use App\Http\Requests\PurchaseRequest;
 use App\Models\Purchase;
-use App\Models\PurchaseItem;
-use App\Models\Stock;
-use App\Models\StockMovement;
+use App\Services\PurchaseService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class PurchaseController extends Controller
 {
+    public function __construct(private readonly PurchaseService $purchaseService)
+    {
+    }
+
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Purchase::class);
+
         $branchId = $request->attributes->get('branch_id');
-        $purchases = Purchase::with('items.product:id,name,sku')
+
+        $purchases = Purchase::with(['items.product:id,name,sku', 'supplier:id,name'])
             ->where('branch_id', $branchId)
+            ->when($request->query('status'), fn ($q, $s) => $q->where('status', $s))
+            ->when($request->query('supplier_id'), fn ($q, $s) => $q->where('supplier_id', $s))
+            ->when($request->query('from'), fn ($q, $d) => $q->whereDate('created_at', '>=', $d))
+            ->when($request->query('to'), fn ($q, $d) => $q->whereDate('created_at', '<=', $d))
             ->orderByDesc('id')
             ->paginate(20);
 
         return response()->json($purchases);
     }
 
-    public function store(Request $request)
+    public function store(PurchaseRequest $request)
     {
+        $this->authorize('create', Purchase::class);
+
         $branchId = $request->attributes->get('branch_id');
-
-        $data = $request->validate([
-            'supplier_id' => 'required|exists:suppliers,id',
-            'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:products,id',
-            'items.*.qty' => 'required|numeric|min:0.01',
-            'items.*.price' => 'required|numeric|min:0',
-            'paid' => 'nullable|numeric|min:0',
-            'due_date' => 'nullable|date',
-        ]);
-
-        $purchase = DB::transaction(function () use ($data, $branchId) {
-            $items = collect($data['items']);
-            $total = $items->sum(fn ($i) => $i['price'] * $i['qty']);
-
-            $purchase = Purchase::create([
-                'uuid' => (string) Str::uuid(),
-                'supplier_id' => $data['supplier_id'],
-                'branch_id' => $branchId,
-                'total' => $total,
-                'paid' => $data['paid'] ?? 0,
-                'due_date' => $data['due_date'] ?? null,
-                'status' => ($data['paid'] ?? 0) >= $total ? 'paid' : 'open',
-            ]);
-
-            foreach ($items as $item) {
-                PurchaseItem::create([
-                    'purchase_id' => $purchase->id,
-                    'product_id' => $item['product_id'],
-                    'qty' => $item['qty'],
-                    'price' => $item['price'],
-                    'total' => $item['price'] * $item['qty'],
-                ]);
-
-                $product = Product::find($item['product_id']);
-                if ($product->track_stock) {
-                    $stock = Stock::firstOrCreate(
-                        ['branch_id' => $branchId, 'product_id' => $product->id],
-                        ['qty_on_hand' => 0, 'min_qty' => 0]
-                    );
-                    $stock->increment('qty_on_hand', $item['qty']);
-
-                    StockMovement::create([
-                        'branch_id' => $branchId,
-                        'product_id' => $product->id,
-                        'type' => 'purchase',
-                        'quantity' => $item['qty'],
-                        'ref_type' => 'purchase',
-                        'ref_id' => $purchase->id,
-                        'note' => null,
-                    ]);
-                }
-            }
-
-            return $purchase->load('items');
-        });
+        $purchase = $this->purchaseService->create($branchId, $request->validated());
 
         return response()->json($purchase, 201);
     }
@@ -90,9 +44,12 @@ class PurchaseController extends Controller
     public function show(Request $request, $id)
     {
         $branchId = $request->attributes->get('branch_id');
-        $purchase = Purchase::with('items.product')
+        $purchase = Purchase::with(['items.product', 'supplier', 'payables.payments'])
             ->where('branch_id', $branchId)
             ->findOrFail($id);
+
+        $this->authorize('view', $purchase);
+
         return response()->json($purchase);
     }
 
@@ -100,18 +57,42 @@ class PurchaseController extends Controller
     {
         $branchId = $request->attributes->get('branch_id');
         $purchase = Purchase::where('branch_id', $branchId)->findOrFail($id);
+
+        $this->authorize('update', $purchase);
+
         $data = $request->validate([
-            'status' => 'sometimes|in:draft,open,paid,partial',
+            'status'   => 'sometimes|in:draft,open,paid,partial',
+            'due_date' => 'sometimes|nullable|date',
         ]);
+
         $purchase->update($data);
-        return response()->json($purchase);
+
+        return response()->json($purchase->refresh());
     }
 
     public function destroy(Request $request, $id)
     {
         $branchId = $request->attributes->get('branch_id');
         $purchase = Purchase::where('branch_id', $branchId)->findOrFail($id);
+
+        $this->authorize('delete', $purchase);
+
         $purchase->delete();
+
         return response()->json(['message' => 'deleted']);
+    }
+
+    /** POST /purchases/{purchase}/pay – record an additional payment on a purchase */
+    public function pay(Request $request, $id)
+    {
+        $branchId = $request->attributes->get('branch_id');
+        $purchase = Purchase::where('branch_id', $branchId)->findOrFail($id);
+
+        $this->authorize('update', $purchase);
+
+        $data    = $request->validate(['amount' => 'required|numeric|min:0.01']);
+        $updated = $this->purchaseService->pay($purchase, (float) $data['amount']);
+
+        return response()->json($updated);
     }
 }

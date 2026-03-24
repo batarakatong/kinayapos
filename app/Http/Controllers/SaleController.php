@@ -2,18 +2,22 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\SaleRequest;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleItem;
-use App\Models\Stock;
-use App\Models\StockMovement;
+use App\Services\StockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class SaleController extends Controller
 {
+    public function __construct(private readonly StockService $stockService)
+    {
+    }
+
     public function index(Request $request)
     {
         $branchId = $request->attributes->get('branch_id');
@@ -25,23 +29,12 @@ class SaleController extends Controller
         return response()->json($sales);
     }
 
-    public function store(Request $request)
+    public function store(SaleRequest $request)
     {
         $branchId = $request->attributes->get('branch_id');
         $userId = $request->user()->id;
 
-        $data = $request->validate([
-            'customer_id' => 'nullable|exists:customers,id',
-            'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:products,id',
-            'items.*.qty' => 'required|numeric|min:0.01',
-            'items.*.price' => 'required|numeric|min:0',
-            'items.*.discount' => 'nullable|numeric|min:0',
-            'discount' => 'nullable|numeric|min:0',
-            'tax' => 'nullable|numeric|min:0',
-            'payment_method' => 'nullable|in:cash,transfer,qris,other',
-            'status' => 'nullable|in:draft,pending,paid',
-        ]);
+        $data = $request->validated();
 
         $sale = DB::transaction(function () use ($data, $branchId, $userId) {
             $items = collect($data['items']);
@@ -77,21 +70,15 @@ class SaleController extends Controller
                 // deduct stock if track_stock
                 $product = Product::find($item['product_id']);
                 if ($product->track_stock) {
-                    $stock = Stock::firstOrCreate(
-                        ['branch_id' => $branchId, 'product_id' => $product->id],
-                        ['qty_on_hand' => 0, 'min_qty' => 0]
+                    $this->stockService->adjust(
+                        $branchId,
+                        $product->id,
+                        -1 * $item['qty'],
+                        'sale',
+                        'sale',
+                        (string) $sale->id,
+                        null
                     );
-                    $stock->decrement('qty_on_hand', $item['qty']);
-
-                    StockMovement::create([
-                        'branch_id' => $branchId,
-                        'product_id' => $product->id,
-                        'type' => 'sale',
-                        'quantity' => -1 * $item['qty'],
-                        'ref_type' => 'sale',
-                        'ref_id' => $sale->id,
-                        'note' => null,
-                    ]);
                 }
             }
 

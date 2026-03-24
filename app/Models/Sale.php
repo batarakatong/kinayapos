@@ -48,4 +48,9 @@ class Sale extends Model
     {
         return $this->belongsTo(Customer::class);
     }
+
+    public function scopeBranch($query, int $branchId)
+    {
+        return $query->where('branch_id', $branchId);
+    }
 }

@@ -19,11 +19,13 @@ class Payment extends Model
         'amount',
         'payload',
         'paid_at',
+        'expires_at',
     ];
 
     protected $casts = [
-        'payload' => 'array',
-        'paid_at' => 'datetime',
+        'payload'    => 'array',
+        'paid_at'    => 'datetime',
+        'expires_at' => 'datetime',
     ];
 
     public function sale(): BelongsTo

@@ -2,15 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ProductRequest;
 use App\Models\Product;
-use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
 class ProductController extends Controller
 {
-    public function index(Request $request)
+    public function index()
     {
-        $branchId = $request->attributes->get('branch_id');
+        $branchId = request()->attributes->get('branch_id');
         $products = Product::query()
             ->where(function ($q) use ($branchId) {
                 $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
@@ -22,21 +22,11 @@ class ProductController extends Controller
         return response()->json($products);
     }
 
-    public function store(Request $request)
+    public function store(ProductRequest $request)
     {
         $branchId = $request->attributes->get('branch_id');
 
-        $data = $request->validate([
-            'name' => 'required|string',
-            'sku' => 'required|string|unique:products,sku',
-            'barcode' => 'nullable|string|unique:products,barcode',
-            'price' => 'required|numeric|min:0',
-            'cost' => 'nullable|numeric|min:0',
-            'tax_rate' => 'nullable|numeric|min:0',
-            'is_global' => 'boolean',
-            'track_stock' => 'boolean',
-            'description' => 'nullable|string',
-        ]);
+        $data = $request->validated();
 
         $product = Product::create([
             ...$data,
@@ -59,7 +49,7 @@ class ProductController extends Controller
         return response()->json($product);
     }
 
-    public function update(Request $request, $id)
+    public function update(ProductRequest $request, $id)
     {
         $branchId = $request->attributes->get('branch_id');
         $product = Product::where('id', $id)
@@ -68,18 +58,7 @@ class ProductController extends Controller
             })
             ->firstOrFail();
 
-        $data = $request->validate([
-            'name' => 'sometimes|string',
-            'sku' => 'sometimes|string|unique:products,sku,' . $product->id,
-            'barcode' => 'nullable|string|unique:products,barcode,' . $product->id,
-            'price' => 'sometimes|numeric|min:0',
-            'cost' => 'sometimes|numeric|min:0',
-            'tax_rate' => 'sometimes|numeric|min:0',
-            'is_global' => 'boolean',
-            'track_stock' => 'boolean',
-            'description' => 'nullable|string',
-            'is_active' => 'boolean',
-        ]);
+        $data = $request->validated();
 
         if (array_key_exists('is_global', $data)) {
             $data['branch_id'] = $data['is_global'] ? null : $branchId;

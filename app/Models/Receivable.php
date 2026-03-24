@@ -12,6 +12,7 @@ class Receivable extends Model
     use HasFactory;
 
     protected $fillable = [
+        'uuid',
         'customer_id',
         'branch_id',
         'sale_id',
@@ -34,5 +35,15 @@ class Receivable extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
+    }
+
+    public function sale(): BelongsTo
+    {
+        return $this->belongsTo(Sale::class);
     }
 }

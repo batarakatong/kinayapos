@@ -12,6 +12,7 @@ class Payable extends Model
     use HasFactory;
 
     protected $fillable = [
+        'uuid',
         'supplier_id',
         'branch_id',
         'purchase_id',
@@ -34,5 +35,15 @@ class Payable extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class);
+    }
+
+    public function purchase(): BelongsTo
+    {
+        return $this->belongsTo(Purchase::class);
     }
 }

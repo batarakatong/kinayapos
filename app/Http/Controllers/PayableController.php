@@ -2,38 +2,48 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\PayablePayRequest;
+use App\Http\Requests\PayableRequest;
 use App\Models\Payable;
-use App\Models\PayablePayment;
+use App\Services\PayableService;
 use Illuminate\Http\Request;
 
 class PayableController extends Controller
 {
+    public function __construct(private readonly PayableService $payableService)
+    {
+    }
+
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Payable::class);
+
         $branchId = $request->attributes->get('branch_id');
-        $list = Payable::with('payments')
+
+        $list = Payable::with(['payments', 'supplier:id,name'])
             ->where('branch_id', $branchId)
+            ->when($request->query('status'), fn ($q, $s) => $q->where('status', $s))
+            ->when($request->query('supplier_id'), fn ($q, $s) => $q->where('supplier_id', $s))
+            ->when($request->query('from'), fn ($q, $d) => $q->whereDate('due_date', '>=', $d))
+            ->when($request->query('to'), fn ($q, $d) => $q->whereDate('due_date', '<=', $d))
             ->orderByDesc('id')
             ->paginate(20);
+
         return response()->json($list);
     }
 
-    public function store(Request $request)
+    public function store(PayableRequest $request)
     {
+        $this->authorize('create', Payable::class);
+
         $branchId = $request->attributes->get('branch_id');
-        $data = $request->validate([
-            'supplier_id' => 'required|exists:suppliers,id',
-            'purchase_id' => 'nullable|exists:purchases,id',
-            'amount' => 'required|numeric|min:0',
-            'due_date' => 'nullable|date',
-            'note' => 'nullable|string',
-        ]);
+        $data     = $request->validated();
 
         $payable = Payable::create([
             ...$data,
             'branch_id' => $branchId,
-            'balance' => $data['amount'],
-            'status' => 'open',
+            'balance'   => $data['amount'],
+            'status'    => 'open',
         ]);
 
         return response()->json($payable, 201);
@@ -42,57 +52,54 @@ class PayableController extends Controller
     public function show(Request $request, $id)
     {
         $branchId = $request->attributes->get('branch_id');
-        $item = Payable::with('payments')->where('branch_id', $branchId)->findOrFail($id);
-        return response()->json($item);
+        $payable  = Payable::with(['payments', 'supplier:id,name', 'purchase'])
+            ->where('branch_id', $branchId)
+            ->findOrFail($id);
+
+        $this->authorize('view', $payable);
+
+        return response()->json($payable);
     }
 
     public function update(Request $request, $id)
     {
         $branchId = $request->attributes->get('branch_id');
-        $item = Payable::where('branch_id', $branchId)->findOrFail($id);
+        $payable  = Payable::where('branch_id', $branchId)->findOrFail($id);
+
+        $this->authorize('update', $payable);
+
         $data = $request->validate([
             'due_date' => 'nullable|date',
-            'note' => 'nullable|string',
+            'note'     => 'nullable|string',
         ]);
-        $item->update($data);
-        return response()->json($item);
+
+        $payable->update($data);
+
+        return response()->json($payable->refresh());
     }
 
     public function destroy(Request $request, $id)
     {
         $branchId = $request->attributes->get('branch_id');
-        Payable::where('branch_id', $branchId)->findOrFail($id)->delete();
+        $payable  = Payable::where('branch_id', $branchId)->findOrFail($id);
+
+        $this->authorize('delete', $payable);
+
+        $payable->delete();
+
         return response()->json(['message' => 'deleted']);
     }
 
-    public function pay(Request $request, $id)
+    /** POST /payables/{payable}/pay */
+    public function pay(PayablePayRequest $request, $id)
     {
         $branchId = $request->attributes->get('branch_id');
-        $payable = Payable::where('branch_id', $branchId)->findOrFail($id);
+        $payable  = Payable::where('branch_id', $branchId)->findOrFail($id);
 
-        $data = $request->validate([
-            'amount' => 'required|numeric|min:0.01',
-            'method' => 'required|in:cash,transfer,qris',
-            'note' => 'nullable|string',
-        ]);
+        $this->authorize('pay', $payable);
 
-        $payment = PayablePayment::create([
-            'payable_id' => $payable->id,
-            'amount' => $data['amount'],
-            'method' => $data['method'],
-            'paid_at' => now(),
-            'note' => $data['note'] ?? null,
-        ]);
+        $result = $this->payableService->pay($payable, $request->validated());
 
-        $payable->balance -= $data['amount'];
-        if ($payable->balance <= 0) {
-            $payable->balance = 0;
-            $payable->status = 'paid';
-        } elseif ($payable->balance < $payable->amount) {
-            $payable->status = 'partial';
-        }
-        $payable->save();
-
-        return response()->json(['payment' => $payment, 'payable' => $payable]);
+        return response()->json($result);
     }
 }
