@@ -42,6 +42,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // Sync
     Route::post('sync/push', [App\Http\Controllers\SyncController::class, 'push'])->middleware('branch');
     Route::get('sync/pull', [App\Http\Controllers\SyncController::class, 'pull'])->middleware('branch');
+
+    // Notifications for branch (accessible by all authenticated users)
+    Route::get('notifications/branch/{branch}', [App\Http\Controllers\Admin\NotificationController::class, 'forBranch']);
+    Route::post('notifications/{notification}/read', [App\Http\Controllers\Admin\NotificationController::class, 'markReadByBranch']);
 });
 
 // Public endpoints (auth, health, payment callbacks)
@@ -83,8 +87,6 @@ Route::middleware(['auth:sanctum', 'super_admin'])->prefix('admin')->group(funct
     Route::get('notifications/{notification}', [App\Http\Controllers\Admin\NotificationController::class, 'show']);
     Route::put('notifications/{notification}', [App\Http\Controllers\Admin\NotificationController::class, 'update']);
     Route::delete('notifications/{notification}', [App\Http\Controllers\Admin\NotificationController::class, 'destroy']);
-    Route::get('notifications/branch/{branch}', [App\Http\Controllers\Admin\NotificationController::class, 'forBranch']);
-    Route::patch('notifications/{notification}/read/{branch}', [App\Http\Controllers\Admin\NotificationController::class, 'markRead']);
 
     // SMTP Settings
     Route::get('smtp', [App\Http\Controllers\Admin\SmtpController::class, 'index']);

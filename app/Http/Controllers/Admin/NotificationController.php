@@ -104,18 +104,31 @@ class NotificationController extends Controller
         return response()->json(['message' => 'Notification deleted']);
     }
 
-    // GET /admin/notifications/branch/{branch}
+    // GET /notifications/branch/{branch}  — accessible by all authenticated users
     public function forBranch(Branch $branch)
     {
         $notifications = $branch->notifications()
             ->with('creator:id,name')
+            ->where('is_draft', false)
             ->orderByDesc('sent_at')
-            ->paginate(20);
+            ->get();
 
         return response()->json($notifications);
     }
 
-    // PATCH /admin/notifications/{notification}/read/{branch}
+    // POST /notifications/{notification}/read  — body: {branch_id}
+    public function markReadByBranch(Request $request, Notification $notification)
+    {
+        $branchId = $request->input('branch_id');
+        if ($branchId) {
+            $notification->branches()->updateExistingPivot($branchId, [
+                'read_at' => now(),
+            ]);
+        }
+        return response()->json(['message' => 'Marked as read']);
+    }
+
+    // PATCH /admin/notifications/{notification}/read/{branch}  — admin only
     public function markRead(Notification $notification, Branch $branch)
     {
         $notification->branches()->updateExistingPivot($branch->id, [

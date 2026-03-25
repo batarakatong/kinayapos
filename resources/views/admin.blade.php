@@ -303,29 +303,31 @@
         <div class="space-y-3">
           <template x-for="n in list" :key="n.id">
             <div class="card p-4 flex items-start gap-4">
-              <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                :class="{'bg-blue-100':n.type==='announcement','bg-amber-100':n.type==='billing','bg-red-100':n.type==='alert','bg-emerald-100':n.type==='update'}">
-                <span class="text-lg">{{'{'}}{{'{'}}{'info':'📢','announcement':'📢','billing':'💳','alert':'🚨','update':'🔄'}[n.type]||'📢'{{'}'}}{{'}'}}}</span>
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl"
+                :class="n.type==='billing'?'bg-amber-100':n.type==='alert'?'bg-red-100':n.type==='update'?'bg-emerald-100':'bg-blue-100'">
+                <span x-text="n.type==='billing'?'💳':n.type==='alert'?'🚨':n.type==='update'?'🔄':'📢'"></span>
               </div>
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2 flex-wrap mb-1">
                   <span class="font-semibold text-sm" x-text="n.title"></span>
-                  <span class="badge" :class="{'bg-blue-100 text-blue-700':n.type==='announcement','bg-amber-100 text-amber-700':n.type==='billing','bg-red-100 text-red-700':n.type==='alert','bg-emerald-100 text-emerald-700':n.type==='update'}" x-text="n.type"></span>
-                  <span x-show="n.is_broadcast" class="badge bg-purple-100 text-purple-700">Broadcast</span>
-                  <span x-show="n.is_draft" class="badge bg-slate-100 text-slate-500">Draft</span>
+                  <span class="badge"
+                    :class="n.type==='announcement'?'bg-blue-100 text-blue-700':n.type==='billing'?'bg-amber-100 text-amber-700':n.type==='alert'?'bg-red-100 text-red-700':'bg-emerald-100 text-emerald-700'"
+                    x-text="n.type==='announcement'?'Pengumuman':n.type==='billing'?'Billing':n.type==='alert'?'Alert':'Update'"></span>
+                  <span x-show="n.is_broadcast" class="badge bg-purple-100 text-purple-700">📡 Broadcast</span>
+                  <span x-show="n.is_draft" class="badge bg-slate-100 text-slate-500">📝 Draft</span>
                 </div>
-                <p class="text-sm text-slate-500 mb-2" x-text="n.body"></p>
-                <div class="flex flex-wrap gap-1">
+                <p class="text-sm text-slate-500 mb-2 line-clamp-2" x-text="n.body"></p>
+                <div class="flex flex-wrap gap-1 mb-1">
                   <template x-for="b in (n.branches||[])" :key="b.id">
-                    <span class="badge bg-slate-100 text-slate-600" x-text="b.name"></span>
+                    <span class="badge bg-indigo-50 text-indigo-600" x-text="b.name"></span>
                   </template>
                 </div>
-                <p class="text-xs text-slate-400 mt-1" x-text="n.sent_at?'Terkirim: '+n.sent_at:(n.scheduled_at?'Dijadwal: '+n.scheduled_at:'Belum dikirim')"></p>
+                <p class="text-xs text-slate-400" x-text="n.sent_at?'✅ Terkirim: '+new Date(n.sent_at).toLocaleString('id-ID'):(n.scheduled_at?'🕐 Dijadwal: '+n.scheduled_at:'⏸ Belum dikirim')"></p>
               </div>
               <div class="flex gap-2 flex-shrink-0 flex-col items-end">
-                <button @click="openM('nF',{id:n.id,title:n.title,body:n.body,type:n.type,is_broadcast:n.is_broadcast,branch_ids:(n.branches||[]).map(b=>b.id),action_url:n.action_url||'',is_draft:n.is_draft})" class="text-indigo-600 hover:underline text-xs">Edit</button>
-                <button x-show="n.is_draft" @click="publishNotif(n)" class="text-emerald-600 hover:underline text-xs">Kirim</button>
-                <button @click="del('notifications',n.id)" class="text-red-500 hover:underline text-xs">Hapus</button>
+                <button @click="openM('nF',{id:n.id,title:n.title,body:n.body,type:n.type,is_broadcast:n.is_broadcast,branch_ids:(n.branches||[]).map(b=>b.id),action_url:n.action_url||'',is_draft:n.is_draft})" class="text-indigo-600 hover:underline text-xs font-medium">Edit</button>
+                <button x-show="n.is_draft" @click="publishNotif(n)" class="text-emerald-600 hover:underline text-xs font-medium">Kirim</button>
+                <button @click="del('notifications',n.id)" class="text-red-500 hover:underline text-xs font-medium">Hapus</button>
               </div>
             </div>
           </template>
