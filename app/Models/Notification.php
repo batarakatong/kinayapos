@@ -29,7 +29,6 @@ class Notification extends Model
     public function branches(): BelongsToMany
     {
         return $this->belongsToMany(Branch::class, 'notification_branches')
-            ->withPivot('read_at', 'delivered_at')
-            ->withTimestamps();
+            ->withPivot('read_at', 'delivered_at');
     }
 }
