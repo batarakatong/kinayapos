@@ -24,7 +24,16 @@ class Product extends Model
         'is_active',
         'branch_id',
         'description',
+        'image_path',
     ];
+
+    protected $appends = ['image_url'];
+
+    public function getImageUrlAttribute(): ?string
+    {
+        if (!$this->image_path) return null;
+        return url('storage/' . $this->image_path);
+    }
 
     public function branch(): BelongsTo
     {

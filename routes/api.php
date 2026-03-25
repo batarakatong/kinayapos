@@ -8,6 +8,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Products & stock
     Route::apiResource('products', App\Http\Controllers\ProductController::class)->middleware('branch');
+    Route::post('products/{product}/image', [App\Http\Controllers\ProductController::class, 'uploadImage'])->middleware('branch');
     Route::get('stocks', [App\Http\Controllers\StockController::class, 'index'])->middleware('branch');
     Route::post('stocks/adjust', [App\Http\Controllers\StockController::class, 'adjust'])->middleware('branch');
 
