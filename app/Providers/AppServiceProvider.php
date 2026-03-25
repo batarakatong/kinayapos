@@ -19,6 +19,7 @@ use App\Services\ReceivableService;
 use App\Services\StockService;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Carbon;
 
 class AppServiceProvider extends AuthServiceProvider
 {
@@ -51,6 +52,12 @@ class AppServiceProvider extends AuthServiceProvider
     public function boot(): void
     {
         $this->registerPolicies();
+
+        // Serialize all Carbon/datetime to ISO-8601 with +07:00 offset (not UTC 'Z')
+        // So Flutter/mobile can parse the correct local time without needing .toLocal()
+        Carbon::serializeUsing(function (Carbon $carbon) {
+            return $carbon->setTimezone(config('app.timezone'))->toIso8601String();
+        });
 
         // Super-admin gate: bypass all policy checks
         Gate::before(function ($user, $ability) {
