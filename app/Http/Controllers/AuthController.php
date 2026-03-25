@@ -29,7 +29,13 @@ class AuthController extends Controller
         return response()->json([
             'token' => $token,
             'user' => $user,
-            'branches' => $user->branches()->get(['branches.id', 'name', 'code']),
+            'branches' => $user->branches()->get(['branches.id', 'name', 'code'])
+                ->map(fn($b) => array_merge($b->toArray(), [
+                    'pivot' => [
+                        'role' => $b->pivot->role,
+                        'is_default' => $b->pivot->is_default,
+                    ],
+                ])),
         ]);
     }
 

@@ -31,5 +31,14 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $admin->branches()->attach($branch->id, ['role' => 'super_admin', 'is_default' => true]);
+
+        // Default kasir account
+        $kasir = User::create([
+            'name' => 'Kasir',
+            'email' => 'kasir@kinayapos.com',
+            'password' => Hash::make('kasir1234'),
+        ]);
+
+        $kasir->branches()->attach($branch->id, ['role' => 'cashier', 'is_default' => true]);
     }
 }
