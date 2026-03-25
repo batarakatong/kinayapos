@@ -34,7 +34,7 @@ class ReportController extends Controller
     public function stocks(ReportRequest $request)
     {
         $branchId = $request->attributes->get('branch_id');
-        $stocks   = Stock::with('product:id,name,sku,min_qty')
+        $stocks   = Stock::with('product:id,name,sku')
             ->where('branch_id', $branchId)
             ->get()
             ->map(fn ($s) => [
