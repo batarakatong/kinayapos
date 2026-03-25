@@ -111,7 +111,16 @@ class NotificationController extends Controller
             ->with('creator:id,name')
             ->where('is_draft', false)
             ->orderByDesc('sent_at')
-            ->get();
+            ->withPivot('read_at', 'delivered_at')
+            ->get()
+            ->map(function ($n) {
+                $arr = $n->toArray();
+                $arr['pivot'] = [
+                    'read_at'      => $n->pivot->read_at ?? null,
+                    'delivered_at' => $n->pivot->delivered_at ?? null,
+                ];
+                return $arr;
+            });
 
         return response()->json($notifications);
     }
