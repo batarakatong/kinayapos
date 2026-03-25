@@ -10,7 +10,15 @@ class DashboardController extends Controller
     {
         return view('dashboard', [
             'appName' => Config::get('app.name', 'KINAYA POS API'),
-            'appEnv' => Config::get('app.env'),
+            'appEnv'  => Config::get('app.env'),
+            'apiBase' => url('/api'),
+        ]);
+    }
+
+    public function admin()
+    {
+        return view('admin', [
+            'appName' => Config::get('app.name', 'KINAYA POS'),
             'apiBase' => url('/api'),
         ]);
     }
