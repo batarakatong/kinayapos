@@ -14,7 +14,8 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'branch' => \App\Http\Middleware\EnforceBranch::class,
+            'branch'      => \App\Http\Middleware\EnforceBranch::class,
+            'super_admin' => \App\Http\Middleware\RequireSuperAdmin::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
