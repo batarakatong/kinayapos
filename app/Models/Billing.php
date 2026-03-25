@@ -8,8 +8,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Billing extends Model
 {
     protected $fillable = [
-        'branch_id', 'plan', 'amount', 'billing_date',
-        'due_date', 'paid_at', 'status', 'invoice_number', 'notes',
+        'branch_id', 'package_id', 'plan', 'amount',
+        'billing_date', 'period_start', 'period_end',
+        'due_date', 'paid_at', 'status', 'invoice_number',
+        'notes', 'payment_method', 'payment_proof',
     ];
 
     protected $casts = [
@@ -22,6 +24,11 @@ class Billing extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    public function package(): BelongsTo
+    {
+        return $this->belongsTo(BillingPackage::class, 'package_id');
     }
 
     // Auto-generate invoice number

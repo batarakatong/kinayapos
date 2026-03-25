@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 namespace App\Http\Controllers\Admin;
 
@@ -12,8 +12,9 @@ class NotificationController extends Controller
     // GET /admin/notifications
     public function index(Request $request)
     {
-        $notifications = Notification::with('creator:id,name')
+        $notifications = Notification::with('creator:id,name', 'branches:id,name,code')
             ->when($request->type, fn($q) => $q->where('type', $request->type))
+            ->when(isset($request->is_draft), fn($q) => $q->where('is_draft', $request->boolean('is_draft')))
             ->orderByDesc('created_at')
             ->paginate(20);
 
@@ -26,7 +27,7 @@ class NotificationController extends Controller
         return response()->json($notification->load('creator:id,name', 'branches:id,name,code'));
     }
 
-    // POST /admin/notifications — buat & kirim notifikasi
+    // POST /admin/notifications
     public function store(Request $request)
     {
         $data = $request->validate([
@@ -37,20 +38,28 @@ class NotificationController extends Controller
             'branch_ids'   => 'array',
             'branch_ids.*' => 'exists:branches,id',
             'scheduled_at' => 'nullable|date|after:now',
+            'image'        => 'nullable|string|max:255',
+            'action_url'   => 'nullable|string|max:255',
+            'is_draft'     => 'boolean',
         ]);
+
+        $isBroadcast = $data['is_broadcast'] ?? (empty($data['branch_ids']));
+        $isDraft     = $data['is_draft'] ?? false;
 
         $notification = Notification::create([
             'title'        => $data['title'],
             'body'         => $data['body'],
             'type'         => $data['type'],
-            'is_broadcast' => $data['is_broadcast'] ?? true,
+            'is_broadcast' => $isBroadcast,
             'created_by'   => $request->user()->id,
             'scheduled_at' => $data['scheduled_at'] ?? null,
-            'sent_at'      => isset($data['scheduled_at']) ? null : now(),
+            'image'        => $data['image'] ?? null,
+            'action_url'   => $data['action_url'] ?? null,
+            'is_draft'     => $isDraft,
+            'sent_at'      => ($isDraft || isset($data['scheduled_at'])) ? null : now(),
         ]);
 
-        // Attach ke branch tertentu atau semua branch
-        if ($notification->is_broadcast) {
+        if ($isBroadcast) {
             $allBranchIds = Branch::pluck('id')->toArray();
             $notification->branches()->attach($allBranchIds);
         } elseif (!empty($data['branch_ids'])) {
@@ -63,20 +72,29 @@ class NotificationController extends Controller
     // PUT /admin/notifications/{notification}
     public function update(Request $request, Notification $notification)
     {
-        // Hanya bisa edit jika belum dikirim
-        if ($notification->sent_at !== null) {
-            return response()->json(['message' => 'Cannot edit sent notification'], 422);
-        }
-
         $data = $request->validate([
             'title'        => 'sometimes|string|max:255',
             'body'         => 'sometimes|string',
             'type'         => 'sometimes|in:announcement,update,billing,alert',
             'scheduled_at' => 'nullable|date',
+            'image'        => 'nullable|string|max:255',
+            'action_url'   => 'nullable|string|max:255',
+            'is_draft'     => 'boolean',
+            'branch_ids'   => 'array',
+            'branch_ids.*' => 'exists:branches,id',
         ]);
 
+        if (isset($data['branch_ids'])) {
+            $notification->branches()->sync($data['branch_ids']);
+            unset($data['branch_ids']);
+        }
+
+        if (isset($data['is_draft']) && !$data['is_draft'] && !$notification->sent_at) {
+            $data['sent_at'] = now();
+        }
+
         $notification->update($data);
-        return response()->json($notification->fresh('creator:id,name'));
+        return response()->json($notification->fresh()->load('creator:id,name', 'branches:id,name,code'));
     }
 
     // DELETE /admin/notifications/{notification}
@@ -86,7 +104,7 @@ class NotificationController extends Controller
         return response()->json(['message' => 'Notification deleted']);
     }
 
-    // GET /admin/notifications/branch/{branch} — notifikasi untuk branch tertentu
+    // GET /admin/notifications/branch/{branch}
     public function forBranch(Branch $branch)
     {
         $notifications = $branch->notifications()
@@ -97,7 +115,7 @@ class NotificationController extends Controller
         return response()->json($notifications);
     }
 
-    // PATCH /admin/notifications/{notification}/read/{branch} — tandai sudah dibaca
+    // PATCH /admin/notifications/{notification}/read/{branch}
     public function markRead(Notification $notification, Branch $branch)
     {
         $notification->branches()->updateExistingPivot($branch->id, [

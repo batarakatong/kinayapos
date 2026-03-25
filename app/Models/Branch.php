@@ -13,12 +13,14 @@ class Branch extends Model
     use HasFactory;
 
     protected $fillable = [
-        'name',
-        'code',
-        'address',
-        'phone',
-        'timezone',
-        'is_active',
+        'name', 'code', 'address', 'phone', 'email',
+        'timezone', 'is_active',
+        'logo', 'bank_name', 'bank_account', 'bank_holder',
+        'tax_id', 'notes',
+    ];
+
+    protected $casts = [
+        'is_active' => 'boolean',
     ];
 
     public function users(): BelongsToMany

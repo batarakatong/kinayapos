@@ -99,5 +99,13 @@ Route::middleware(['auth:sanctum', 'super_admin'])->prefix('admin')->group(funct
     Route::get('report-schedules/{branchId}', [App\Http\Controllers\Admin\SmtpController::class, 'scheduleShow']);
     Route::put('report-schedules/{branchId}', [App\Http\Controllers\Admin\SmtpController::class, 'scheduleUpsert']);
     Route::delete('report-schedules/{branchId}', [App\Http\Controllers\Admin\SmtpController::class, 'scheduleDelete']);
+
+    // Billing Packages / Pricing Plans
+    Route::get('packages', [App\Http\Controllers\Admin\BillingPackageController::class, 'index']);
+    Route::post('packages', [App\Http\Controllers\Admin\BillingPackageController::class, 'store']);
+    Route::get('packages/{package}', [App\Http\Controllers\Admin\BillingPackageController::class, 'show']);
+    Route::put('packages/{package}', [App\Http\Controllers\Admin\BillingPackageController::class, 'update']);
+    Route::delete('packages/{package}', [App\Http\Controllers\Admin\BillingPackageController::class, 'destroy']);
+    Route::patch('packages/{package}/toggle', [App\Http\Controllers\Admin\BillingPackageController::class, 'toggle']);
 });
 
