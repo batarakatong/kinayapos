@@ -16,7 +16,6 @@ class KasirSeeder extends Seeder
 {
     public function run(): void
     {
-        // Gunakan branch pertama yang ada
         $branch = Branch::first();
 
         if (!$branch) {
@@ -24,23 +23,30 @@ class KasirSeeder extends Seeder
             return;
         }
 
-        // Buat user kasir jika belum ada
-        if (User::where('email', 'kasir@kinayapos.com')->exists()) {
-            $this->command->info('User kasir@kinayapos.com sudah ada, skip.');
-            return;
+        // Branch Admin
+        if (User::where('email', 'admin@kinayapos.com')->exists()) {
+            $this->command->info('User admin@kinayapos.com sudah ada, skip.');
+        } else {
+            $branchAdmin = User::create([
+                'name'     => 'Admin Toko',
+                'email'    => 'admin@kinayapos.com',
+                'password' => Hash::make('admin1234'),
+            ]);
+            $branchAdmin->branches()->attach($branch->id, ['role' => 'branch_admin', 'is_default' => true]);
+            $this->command->info("✅ Admin dibuat: admin@kinayapos.com / admin1234 (branch: {$branch->name})");
         }
 
-        $kasir = User::create([
-            'name'     => 'Kasir',
-            'email'    => 'kasir@kinayapos.com',
-            'password' => Hash::make('kasir1234'),
-        ]);
-
-        $kasir->branches()->attach($branch->id, [
-            'role'       => 'cashier',
-            'is_default' => true,
-        ]);
-
-        $this->command->info("✅ User kasir dibuat: kasir@kinayapos.com / kasir1234 (branch: {$branch->name})");
+        // Kasir
+        if (User::where('email', 'kasir@kinayapos.com')->exists()) {
+            $this->command->info('User kasir@kinayapos.com sudah ada, skip.');
+        } else {
+            $kasir = User::create([
+                'name'     => 'Kasir',
+                'email'    => 'kasir@kinayapos.com',
+                'password' => Hash::make('kasir1234'),
+            ]);
+            $kasir->branches()->attach($branch->id, ['role' => 'cashier', 'is_default' => true]);
+            $this->command->info("✅ Kasir dibuat: kasir@kinayapos.com / kasir1234 (branch: {$branch->name})");
+        }
     }
 }

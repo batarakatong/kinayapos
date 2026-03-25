@@ -32,6 +32,15 @@ class DatabaseSeeder extends Seeder
 
         $admin->branches()->attach($branch->id, ['role' => 'super_admin', 'is_default' => true]);
 
+        // Branch Admin — akses penuh di cabang (sama seperti admin di Flutter)
+        $branchAdmin = User::create([
+            'name'     => 'Admin Toko',
+            'email'    => 'admin@kinayapos.com',
+            'password' => Hash::make('admin1234'),
+        ]);
+
+        $branchAdmin->branches()->attach($branch->id, ['role' => 'branch_admin', 'is_default' => true]);
+
         // Default kasir account
         $kasir = User::create([
             'name' => 'Kasir',
